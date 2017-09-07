@@ -1,9 +1,9 @@
 package beater
 
 import (
+	"encoding/json"
 	"fmt"
 	"os/exec"
-	"strconv"
 	"strings"
 	"time"
 
@@ -64,32 +64,35 @@ func (bt *Cassandrabeat) Stop() {
 }
 
 func (bt *Cassandrabeat) getLatency(table string) {
-	cmdName := "awkscript.sh"
-	cmdArgs := []string{table}
+	keyspace := strings.Split(table, ".")
+
+	cmdName := "nodetool"
+	cmdArgs := []string{"-h", bt.config.Host, "cfstats", "-F", "json", table}
 	cmdOut := exec.Command(cmdName, cmdArgs...).Output
 
 	output, _ := cmdOut()
-	latency := strings.Split(string(output), "\n")
+	var cfstats map[string]interface{}
+	json.Unmarshal(output, &cfstats)
 
-	var read_latency, write_latency float64
-	if strings.Compare(latency[0], "NaN") == 0 {
-		read_latency = 0.0
-	} else {
-		read_latency, _ = strconv.ParseFloat(latency[0], 64)
+	read_latency_ms := 0.0
+	if cfstats[keyspace[0]].(map[string]interface{})["read_latency_ms"] != nil {
+		read_latency_ms = cfstats[keyspace[0]].(map[string]interface{})["read_latency_ms"].(float64)
 	}
-	if strings.Compare(latency[1], "NaN") == 0 {
-		write_latency = 0.0
-	} else {
-		write_latency, _ = strconv.ParseFloat(latency[1], 64)
+
+	write_latency_ms := 0.0
+	if cfstats[keyspace[0]].(map[string]interface{})["write_latency_ms"] != nil {
+		write_latency_ms = cfstats[keyspace[0]].(map[string]interface{})["write_latency_ms"].(float64)
 	}
 
 	event := common.MapStr {
-		"@timestamp":	 common.Time(time.Now()),
-		"type":		 "stats",
-		"count":	 1,
-		"table_name":	 table,
-		"write_latency": write_latency,
-		"read_latency":	 read_latency,
+		"@timestamp":	             common.Time(time.Now()),
+		"keyspace_name":             keyspace[0],
+		"keyspace_read_count":       cfstats[keyspace[0]].(map[string]interface{})["read_count"].(float64),
+		"keyspace_read_latency_ms":  read_latency_ms,
+		"keyspace_write_count":      cfstats[keyspace[0]].(map[string]interface{})["write_count"].(float64),
+		"keyspace_write_latency_ms": write_latency_ms,
+		"table":                     cfstats[keyspace[0]].(map[string]interface{})["tables"].(map[string]interface{})[keyspace[1]].(map[string]interface{}),
+		"table_name":	             table,
 	}
 
 	bt.client.PublishEvent(event)

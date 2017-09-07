@@ -45,12 +45,6 @@ make
 
 ### Run
 
-Before running Cassandrabeat, execute the following command:
-
-```
-cp $GOPATH/src/github.com/goomzee/cassandrabeat/beater/awkscript.sh $GOPATH/bin
-```
-
 To run Cassandrabeat with debugging output enabled, run:
 
 ```
@@ -75,8 +69,8 @@ Table statistics:
     "@version": "1",
     "type": "stats",
     "count": 1,
-    "table_name": "system.local", 
-    "write_latency": 1.074, 
+    "table_name": "system.local",
+    "write_latency": 1.074,
     "read_latency": 3.343
 }
 </pre>
